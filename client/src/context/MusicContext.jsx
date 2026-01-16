@@ -26,10 +26,13 @@ export const MusicProvider = ({ children }) => {
   }
 
   const playSong = useCallback((song, songQueue = []) => {
-    console.log('[MusicContext] playSong called - target:', song.title);
+    console.log('[MusicContext] playSong:', song.title);
+
+    // 1. Update State
     setCurrentSong(song);
     setIsPlaying(true);
 
+    // 2. Queue Logic
     if (songQueue.length > 0) {
       setQueue(songQueue);
       const index = songQueue.findIndex(s => s._id === song._id);
@@ -38,29 +41,75 @@ export const MusicProvider = ({ children }) => {
       setQueue([song]);
       setCurrentIndex(0);
     }
+
+    // 3. Direct Audio Control (Crucial for browser autoplay policy)
+    if (audioRef.current) {
+      audioRef.current.src = song.audioUrl;
+      audioRef.current.load();
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('[MusicContext] Playback failed:', error.message);
+          setIsPlaying(false);
+          toast?.error?.('Click Play again to start music');
+        });
+      }
+      toast?.success?.(`Playing: ${song.title}`);
+    }
   }, []);
 
   const togglePlay = useCallback(() => {
-    console.log('[MusicContext] togglePlay from', isPlaying, 'to', !isPlaying);
-    setIsPlaying(prev => !prev);
-  }, [isPlaying]);
+    if (!audioRef.current || !currentSong) return;
+
+    if (isPlaying) {
+      console.log('[MusicContext] Pausing');
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      console.log('[MusicContext] Playing');
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('[MusicContext] Play failed:', error.message);
+          setIsPlaying(false);
+        });
+      }
+      setIsPlaying(true);
+    }
+  }, [isPlaying, currentSong]);
 
   const playNext = useCallback(() => {
     if (queue.length === 0) return;
     const nextIndex = (currentIndex + 1) % queue.length;
-    console.log('[MusicContext] playNext index:', nextIndex);
+    const nextSong = queue[nextIndex];
+    console.log('[MusicContext] Next:', nextSong.title);
+
     setCurrentIndex(nextIndex);
-    setCurrentSong(queue[nextIndex]);
+    setCurrentSong(nextSong);
     setIsPlaying(true);
+
+    if (audioRef.current) {
+      audioRef.current.src = nextSong.audioUrl;
+      audioRef.current.load();
+      audioRef.current.play().catch(e => console.error('Next play error:', e));
+    }
   }, [queue, currentIndex]);
 
   const playPrevious = useCallback(() => {
     if (queue.length === 0) return;
     const prevIndex = currentIndex === 0 ? queue.length - 1 : currentIndex - 1;
-    console.log('[MusicContext] playPrevious index:', prevIndex);
+    const prevSong = queue[prevIndex];
+    console.log('[MusicContext] Previous:', prevSong.title);
+
     setCurrentIndex(prevIndex);
-    setCurrentSong(queue[prevIndex]);
+    setCurrentSong(prevSong);
     setIsPlaying(true);
+
+    if (audioRef.current) {
+      audioRef.current.src = prevSong.audioUrl;
+      audioRef.current.load();
+      audioRef.current.play().catch(e => console.error('Prev play error:', e));
+    }
   }, [queue, currentIndex]);
 
   const seek = useCallback((time) => {
@@ -85,60 +134,23 @@ export const MusicProvider = ({ children }) => {
     setQueue([]);
   }, []);
 
-  // Sync audio source when song changes
-  useEffect(() => {
-    if (currentSong && currentSong.audioUrl) {
-      console.log('[MusicContext] Loading new audio URL:', currentSong.audioUrl);
-      if (audioRef.current.src !== currentSong.audioUrl) {
-        audioRef.current.src = currentSong.audioUrl;
-        audioRef.current.load();
-      }
-    }
-  }, [currentSong]);
-
-  // Sync play/pause state
-  useEffect(() => {
-    if (!currentSong || !audioRef.current) return;
-
-    if (isPlaying) {
-      console.log('[MusicContext] Attempting to play...');
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.error('[MusicContext] Playback failed:', error.message);
-          setIsPlaying(false); // Revert UI state on failure
-        });
-      }
-    } else {
-      console.log('[MusicContext] Pausing...');
-      audioRef.current.pause();
-    }
-  }, [isPlaying, currentSong]);
-
-  // Volume sync
+  // Use effects ONLY for volume and event listeners, not play/pause logic
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume;
     }
   }, [volume]);
 
-  // Listeners
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const handleLoadedMetadata = () => {
-      console.log('[MusicContext] Metadata loaded. Duration:', audio.duration);
-      setDuration(audio.duration);
-    };
-    const handleEnded = () => {
-      console.log('[MusicContext] Song ended naturally');
-      playNext();
-    };
+    const handleLoadedMetadata = () => setDuration(audio.duration);
+    const handleEnded = () => playNext();
     const handleError = (e) => {
-      console.error('[MusicContext] Audio element error:', e);
-      toast?.error?.('Audio playback error');
+      console.error('[MusicContext] Audio Error:', e);
+      setIsPlaying(false);
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
