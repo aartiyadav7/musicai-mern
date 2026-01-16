@@ -74,7 +74,7 @@ router.get('/seed', async (req, res, next) => {
         coverImage: "https://i.scdn.co/image/ab67616d0000b2731e02064f0a8cb91b8a5a1b94",
         audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
         plays: 2000,
-        mood: "dramatic",
+        mood: "calm",
         tags: ["rock", "classic", "opera"]
       }
     ];
