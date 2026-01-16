@@ -34,7 +34,7 @@ router.get('/stats', async (req, res, next) => {
 });
 
 // Seed database endpoint (one-time use)
-router.post('/seed', async (req, res, next) => {
+router.get('/seed', async (req, res, next) => {
   try {
     // Sample songs data
     const sampleSongs = [
