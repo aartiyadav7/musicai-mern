@@ -18,68 +18,63 @@ export const MusicProvider = ({ children }) => {
   const [duration, setDuration] = useState(0);
   const [queue, setQueue] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const audioRef = useRef(new Audio());
+  const audioRef = useRef(null);
+
+  // Initialize Audio object only once
+  if (!audioRef.current) {
+    audioRef.current = new Audio();
+  }
 
   const playSong = useCallback((song, songQueue = []) => {
-    console.log('Playing:', song.title);
+    console.log('[MusicContext] playSong called - target:', song.title);
     setCurrentSong(song);
     setIsPlaying(true);
-    
+
     if (songQueue.length > 0) {
       setQueue(songQueue);
       const index = songQueue.findIndex(s => s._id === song._id);
       setCurrentIndex(index !== -1 ? index : 0);
-      console.log('Queue set:', songQueue.length, 'songs, index:', index);
     } else {
-      // Create queue with just this song
       setQueue([song]);
       setCurrentIndex(0);
     }
   }, []);
 
   const togglePlay = useCallback(() => {
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(err => console.error('Play error:', err));
-    }
-    setIsPlaying(!isPlaying);
+    console.log('[MusicContext] togglePlay from', isPlaying, 'to', !isPlaying);
+    setIsPlaying(prev => !prev);
   }, [isPlaying]);
 
   const playNext = useCallback(() => {
-    if (queue.length === 0) {
-      console.log('No queue available');
-      return;
-    }
-    
+    if (queue.length === 0) return;
     const nextIndex = (currentIndex + 1) % queue.length;
-    console.log('Next song:', nextIndex, queue[nextIndex]?.title);
+    console.log('[MusicContext] playNext index:', nextIndex);
     setCurrentIndex(nextIndex);
     setCurrentSong(queue[nextIndex]);
     setIsPlaying(true);
   }, [queue, currentIndex]);
 
   const playPrevious = useCallback(() => {
-    if (queue.length === 0) {
-      console.log('No queue available');
-      return;
-    }
-    
+    if (queue.length === 0) return;
     const prevIndex = currentIndex === 0 ? queue.length - 1 : currentIndex - 1;
-    console.log('Previous song:', prevIndex, queue[prevIndex]?.title);
+    console.log('[MusicContext] playPrevious index:', prevIndex);
     setCurrentIndex(prevIndex);
     setCurrentSong(queue[prevIndex]);
     setIsPlaying(true);
   }, [queue, currentIndex]);
 
   const seek = useCallback((time) => {
-    audioRef.current.currentTime = time;
-    setCurrentTime(time);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
   }, []);
 
   const changeVolume = useCallback((newVolume) => {
-    audioRef.current.volume = newVolume;
-    setVolume(newVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume;
+      setVolume(newVolume);
+    }
   }, []);
 
   const addToQueue = useCallback((songs) => {
@@ -90,58 +85,74 @@ export const MusicProvider = ({ children }) => {
     setQueue([]);
   }, []);
 
-  // Update audio source when song changes
+  // Sync audio source when song changes
   useEffect(() => {
     if (currentSong && currentSong.audioUrl) {
-      console.log('Loading audio:', currentSong.audioUrl);
-      audioRef.current.src = currentSong.audioUrl;
-      audioRef.current.volume = volume;
-      audioRef.current.load();
-      
-      if (isPlaying) {
-        audioRef.current.play().catch(err => {
-          console.error('Autoplay error:', err);
-          setIsPlaying(false);
-        });
+      console.log('[MusicContext] Loading new audio URL:', currentSong.audioUrl);
+      if (audioRef.current.src !== currentSong.audioUrl) {
+        audioRef.current.src = currentSong.audioUrl;
+        audioRef.current.load();
       }
     }
   }, [currentSong]);
 
-  // Handle play/pause state
+  // Sync play/pause state
   useEffect(() => {
-    if (currentSong) {
-      if (isPlaying) {
-        audioRef.current.play().catch(err => {
-          console.error('Play error:', err);
-          setIsPlaying(false);
+    if (!currentSong || !audioRef.current) return;
+
+    if (isPlaying) {
+      console.log('[MusicContext] Attempting to play...');
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('[MusicContext] Playback failed:', error.message);
+          setIsPlaying(false); // Revert UI state on failure
         });
-      } else {
-        audioRef.current.pause();
       }
+    } else {
+      console.log('[MusicContext] Pausing...');
+      audioRef.current.pause();
     }
   }, [isPlaying, currentSong]);
 
-  // Audio event listeners
+  // Volume sync
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  // Listeners
   useEffect(() => {
     const audio = audioRef.current;
+    if (!audio) return;
 
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const handleLoadedMetadata = () => setDuration(audio.duration);
+    const handleLoadedMetadata = () => {
+      console.log('[MusicContext] Metadata loaded. Duration:', audio.duration);
+      setDuration(audio.duration);
+    };
     const handleEnded = () => {
-      console.log('Song ended, playing next');
+      console.log('[MusicContext] Song ended naturally');
       playNext();
+    };
+    const handleError = (e) => {
+      console.error('[MusicContext] Audio element error:', e);
+      toast?.error?.('Audio playback error');
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
     };
-  }, [playNext]); // ← Added playNext as dependency
+  }, [playNext]);
 
   return (
     <MusicContext.Provider
