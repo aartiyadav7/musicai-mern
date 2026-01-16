@@ -1,52 +1,46 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Song = require('../models/Song');
 
 class AIRecommendationService {
   constructor() {
     // Only initialize if API key exists
-    if (process.env.CLAUDE_API_KEY) {
+    if (process.env.GEMINI_API_KEY) {
       try {
-        this.anthropic = new Anthropic({
-          apiKey: process.env.CLAUDE_API_KEY,
-        });
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        this.model = genAI.getGenerativeModel({ model: "gemini-pro" });
         this.hasAPIKey = true;
-        console.log('✅ Claude AI initialized');
+        console.log('✅ Gemini AI initialized');
       } catch (error) {
-        console.warn('⚠️  Failed to initialize Anthropic client:', error.message);
+        console.warn('⚠️  Failed to initialize Gemini client:', error.message);
         this.hasAPIKey = false;
       }
     } else {
-      console.warn('⚠️  CLAUDE_API_KEY not found - using fallback recommendations');
+      console.warn('⚠️  GEMINI_API_KEY not found - using fallback recommendations');
       this.hasAPIKey = false;
     }
   }
 
   async generateRecommendations(user, context = {}) {
     // If no API key, use fallback immediately
-    if (!this.hasAPIKey || !this.anthropic) {
+    if (!this.hasAPIKey || !this.model) {
       console.log('📊 Using fallback recommendations');
       return this.getFallbackRecommendations(user, context);
     }
 
     try {
       const prompt = this.buildPrompt(user, context);
-      
-      const message = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 1024,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
-      });
 
-      const recommendations = this.parseAIResponse(message.content[0].text);
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      const recommendations = this.parseAIResponse(text);
       const songs = await this.matchSongsFromDatabase(recommendations);
 
       return {
         songs,
         reason: 'Based on your listening preferences and mood',
-        basedOn: 'AI analysis'
+        basedOn: 'AI analysis (Gemini)'
       };
     } catch (error) {
       console.error('AI Recommendation Error:', error.message);
@@ -58,13 +52,15 @@ class AIRecommendationService {
     const { mood, preferences } = context;
     return `Recommend 10 songs for a user who likes ${preferences?.favoriteGenres?.join(', ') || 'various genres'} 
     and is currently feeling ${mood || 'neutral'}. 
-    Focus on popular and well-known tracks. Return only song titles and artists in format: "Song Title - Artist Name"`;
+    Focus on popular and well-known tracks. Return only song titles and artists in this exact format: "Song Title - Artist Name". Do not include numbering or extra text.`;
   }
 
   parseAIResponse(text) {
     const lines = text.split('\n').filter(line => line.trim());
     return lines.map(line => {
-      const [title, artist] = line.replace(/^\d+\.\s*/, '').split(' - ');
+      // Clean up numbering like "1. " or "- "
+      const cleanLine = line.replace(/^[\d-]+\.\s*/, '').replace(/^\*\s*/, '');
+      const [title, artist] = cleanLine.split(' - ');
       return { title: title?.trim(), artist: artist?.trim() };
     }).filter(song => song.title && song.artist);
   }
@@ -85,10 +81,10 @@ class AIRecommendationService {
 
   async getFallbackRecommendations(user, context) {
     const { mood, preferences } = context;
-    
+
     // Build query based on user preferences
     const query = {};
-    
+
     if (mood) {
       query.mood = mood;
     } else if (preferences?.favoriteGenres?.length > 0) {
@@ -106,8 +102,8 @@ class AIRecommendationService {
 
     return {
       songs,
-      reason: mood 
-        ? `Popular ${mood} songs` 
+      reason: mood
+        ? `Popular ${mood} songs`
         : 'Popular recommendations based on your preferences',
       basedOn: 'database matching'
     };

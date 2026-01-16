@@ -16,7 +16,7 @@ AI-powered music streaming application with personalized recommendations.
 - **Frontend:** React.js, TailwindCSS, Vite
 - **Backend:** Node.js, Express.js
 - **Database:** MongoDB
-- **AI Integration:** Anthropic Claude API
+- **AI Integration:** Google Gemini API
 
 ## Local Setup
 
@@ -50,7 +50,7 @@ AI-powered music streaming application with personalized recommendations.
     JWT_SECRET=your_secret_key_here
     PORT=5000
     CLIENT_URL=http://localhost:3000
-    CLAUDE_API_KEY=your_anthropic_key_optional
+    GEMINI_API_KEY=your_gemini_api_key_here
     ```
 
     Create `client/.env`:

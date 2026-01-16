@@ -8,6 +8,7 @@ node_modules
 .bin
 mongo_data
 *.log
+*.zip
 
 # Testing
 coverage
