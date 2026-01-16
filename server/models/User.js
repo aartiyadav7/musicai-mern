@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema({
       default: 'happy'
     }
   },
-  favoriteSongs: [{                    // ← ADD THIS FIELD
+  favoriteSongs: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Song'
   }],
