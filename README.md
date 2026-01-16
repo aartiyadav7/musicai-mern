@@ -1,6 +1,9 @@
-# MusicAI - MERN Stack Music Streaming Platform
+# 🎵 MusicAI - MERN Stack App
 
-AI-powered music streaming application with personalized recommendations.
+[![Live Demo](https://img.shields.io/badge/demo-online-green.svg)](https://musicai-mern.vercel.app)
+🚀 **Live Demo:** [https://musicai-mern.vercel.app](https://musicai-mern.vercel.app)
+
+MusicAI is a modern music streaming application with personalized recommendations.
 
 ## Features
 
