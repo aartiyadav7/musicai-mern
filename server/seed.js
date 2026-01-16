@@ -28,7 +28,7 @@ const sampleSongs = [
     mood: "party",
     tags: ["disco", "dance", "upbeat"]
   },
-  
+
   // Rock Songs
   {
     title: "Bohemian Rhapsody",
@@ -238,3 +238,5 @@ async function seedDatabase() {
 }
 
 seedDatabase();
+
+module.exports = { sampleSongs, seedDatabase };
