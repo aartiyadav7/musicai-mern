@@ -1,0 +1,17 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Local Environment & Binaries
+.env
+.bin
+mongo_data
+*.log
+
+# Testing
+coverage
+
+# Misc
+.DS_Store
+.vscode
